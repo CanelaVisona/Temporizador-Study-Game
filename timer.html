@@ -1,0 +1,153 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Temporizador Completo</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin-top: 30px; }
+    input { font-size: 20px; padding: 5px; }
+    button { 
+      font-size: 20px; 
+      padding: 10px 20px; 
+      margin: 10px; 
+      cursor: pointer; 
+      border-radius: 8px;
+    }
+    #main-time { font-size: 60px; margin-top: 20px; }
+    #initial, #extra, #total { font-size: 22px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+  <h2> Cane´s Temporizador Game </h2>
+
+  <input id="minutes" type="number" placeholder="Minutos" min="0">
+
+  <div>
+    <button onclick="startTimer()">Iniciar</button>
+    <button onclick="stopTimer()">Parar</button>
+    <button onclick="resetTimer()">Reiniciar</button>
+    <button onclick="finishTask()">Hecho</button>
+  </div>
+
+  <div id="main-time">00:00</div>
+
+  <div id="initial">Tiempo inicial: --:--</div>
+  <div id="extra">Tiempo extra: +00:00</div>
+  <div id="total">Tiempo total: --:--</div>
+
+  <!-- Sonido cuando llega a 0 -->
+  <audio id="alarm-sound">
+    <source src="https://github.com/CanelaVisona/temporizador-audios/raw/refs/heads/main/mixkit-gold-coin-prize-1999.wav" type="audio/wav">
+  </audio>
+
+  <!-- Sonido botón HECHO -->
+  <audio id="done-sound">
+    <source src="https://github.com/CanelaVisona/temporizador-audios/raw/refs/heads/main/mixkit-gold-coin-prize-1999.wav" type="audio/wav">
+  </audio>
+
+<script>
+  let running = false;
+  let startTimestamp = null;
+  let endTimestamp = null;
+  let interval;
+  let totalInitial = 0;
+  let played = false;
+
+  const alarm = document.getElementById("alarm-sound");
+  const done = document.getElementById("done-sound");
+
+  function playSound(audio) {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.load(); // fuerza recarga
+    audio.play().catch(err => console.log("Audio bloqueado:", err));
+  }
+
+  function formatTime(totalSeconds) {
+    const mins = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+    const secs = String(totalSeconds % 60).padStart(2, "0");
+    return `${mins}:${secs}`;
+  }
+
+  function startTimer() {
+    if (running) return;
+    running = true;
+
+    const minutes = Number(document.getElementById("minutes").value);
+    totalInitial = minutes * 60;
+
+    document.getElementById("initial").textContent =
+      "Tiempo inicial: " + formatTime(totalInitial);
+
+    document.getElementById("extra").textContent = "Tiempo extra: +00:00";
+    document.getElementById("total").textContent = "Tiempo total: --:--";
+
+    played = false;
+    startTimestamp = Date.now();
+    endTimestamp = startTimestamp + totalInitial * 1000;
+
+    clearInterval(interval);
+    interval = setInterval(updateTimer, 200);
+  }
+
+  function updateTimer() {
+    const now = Date.now();
+
+    let diff = Math.floor((endTimestamp - now) / 1000);
+
+    // Llegó a 0
+    if (diff === 0 && !played) {
+      playSound(alarm);
+      played = true;
+    }
+
+    if (diff < 0) {
+      const extra = Math.abs(diff);
+      document.getElementById("extra").textContent =
+        "Tiempo extra: +" + formatTime(extra);
+
+      document.getElementById("main-time").textContent =
+        "+" + formatTime(extra);
+    } else {
+      document.getElementById("main-time").textContent = formatTime(diff);
+    }
+  }
+
+  function stopTimer() {
+    running = false;
+    clearInterval(interval);
+  }
+
+  function resetTimer() {
+    running = false;
+    clearInterval(interval);
+
+    document.getElementById("main-time").textContent = "00:00";
+    document.getElementById("initial").textContent = "Tiempo inicial: --:--";
+    document.getElementById("extra").textContent = "Tiempo extra: +00:00";
+    document.getElementById("total").textContent = "Tiempo total: --:--";
+  }
+
+  function finishTask() {
+    clearInterval(interval);
+    running = false;
+
+    const now = Date.now();
+
+    const secondsPassed = Math.floor((now - startTimestamp) / 1000);
+    const totalTime = Math.max(0, secondsPassed);
+
+    document.getElementById("total").textContent =
+      "Tiempo total: " + formatTime(totalTime);
+
+    document.getElementById("main-time").textContent = "00:00";
+
+    // sonido "Hecho"
+    playSound(done);
+  }
+</script>
+
+</body>
+</html>
