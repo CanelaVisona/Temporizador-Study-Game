@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -58,11 +57,22 @@
   const alarm = document.getElementById("alarm-sound");
   const done = document.getElementById("done-sound");
 
+  // Pedir permiso de notificaciones al cargar la página
+  if ("Notification" in window) {
+    Notification.requestPermission();
+  }
+
   function playSound(audio) {
     audio.pause();
     audio.currentTime = 0;
-    audio.load(); // fuerza recarga
+    audio.load(); 
     audio.play().catch(err => console.log("Audio bloqueado:", err));
+  }
+
+  function showNotification(title, body) {
+    if (Notification.permission === "granted") {
+      new Notification(title, { body: body });
+    }
   }
 
   function formatTime(totalSeconds) {
@@ -94,12 +104,11 @@
 
   function updateTimer() {
     const now = Date.now();
-
     let diff = Math.floor((endTimestamp - now) / 1000);
 
-    // Llegó a 0
     if (diff === 0 && !played) {
       playSound(alarm);
+      showNotification("¡Tiempo terminado!", "Tu temporizador llegó a 0");
       played = true;
     }
 
@@ -135,7 +144,6 @@
     running = false;
 
     const now = Date.now();
-
     const secondsPassed = Math.floor((now - startTimestamp) / 1000);
     const totalTime = Math.max(0, secondsPassed);
 
@@ -144,8 +152,9 @@
 
     document.getElementById("main-time").textContent = "00:00";
 
-    // sonido "Hecho"
+    // sonido y notificación "Hecho"
     playSound(done);
+    showNotification("¡Hecho!", "Se completó la tarea");
   }
 </script>
 
