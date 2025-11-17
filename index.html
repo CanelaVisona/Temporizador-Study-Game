@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Temporizador Completo</title>
+
   <style>
     body { font-family: Arial; text-align: center; margin-top: 30px; }
     input { font-size: 20px; padding: 5px; }
@@ -15,6 +16,28 @@
     }
     #main-time { font-size: 60px; margin-top: 20px; }
     #initial, #extra, #total { font-size: 22px; margin-top: 10px; }
+
+    /* 🟨 POPUP VIDEOJUEGO */
+    #xp-popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.7);
+      background: #ffd54f;
+      padding: 25px 40px;
+      border-radius: 15px;
+      font-size: 26px;
+      font-weight: bold;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      display: none;
+      animation: pop 0.4s ease-out;
+      z-index: 9999;
+    }
+
+    @keyframes pop {
+      0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
   </style>
 </head>
 <body>
@@ -35,6 +58,9 @@
   <div id="initial">Tiempo inicial: --:--</div>
   <div id="extra">Tiempo extra: +00:00</div>
   <div id="total">Tiempo total: --:--</div>
+
+  <!-- POPUP experiencia -->
+  <div id="xp-popup"></div>
 
   <!-- Sonido cuando llega a 0 -->
   <audio id="alarm-sound">
@@ -73,6 +99,16 @@
     if (Notification.permission === "granted") {
       new Notification(title, { body: body });
     }
+  }
+
+  function showXP(time) {
+    const popup = document.getElementById("xp-popup");
+    popup.textContent = "¡Sumaste " + time + " de experiencia!";
+    popup.style.display = "block";
+
+    setTimeout(() => {
+      popup.style.display = "none";
+    }, 3000);
   }
 
   function formatTime(totalSeconds) {
@@ -147,14 +183,18 @@
     const secondsPassed = Math.floor((now - startTimestamp) / 1000);
     const totalTime = Math.max(0, secondsPassed);
 
+    const formatted = formatTime(totalTime);
+
     document.getElementById("total").textContent =
-      "Tiempo total: " + formatTime(totalTime);
+      "Tiempo total: " + formatted;
 
     document.getElementById("main-time").textContent = "00:00";
 
-    // sonido y notificación "Hecho"
     playSound(done);
     showNotification("¡Hecho!", "Se completó la tarea");
+
+    // Popup experiencia
+    showXP(formatted);
   }
 </script>
 
