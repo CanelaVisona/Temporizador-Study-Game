@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>Temporizador Completo</title>
-
   <style>
     body { font-family: Arial; text-align: center; margin-top: 30px; }
     input { font-size: 20px; padding: 5px; }
@@ -30,10 +29,8 @@
       font-weight: bold;
       box-shadow: 0 0 20px rgba(0,0,0,0.3);
       display: none;
-      animation: pop 0.4s ease-out;
       z-index: 9999;
     }
-
     @keyframes pop {
       0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
       100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
@@ -42,7 +39,7 @@
 </head>
 <body>
 
-  <h2> Cane´s Temporizador Game </h2>
+  <h2>Cane´s Temporizador Game</h2>
 
   <input id="minutes" type="number" placeholder="Minutos" min="0">
 
@@ -54,7 +51,6 @@
   </div>
 
   <div id="main-time">00:00</div>
-
   <div id="initial">Tiempo inicial: --:--</div>
   <div id="extra">Tiempo extra: +00:00</div>
   <div id="total">Tiempo total: --:--</div>
@@ -83,7 +79,7 @@
   const alarm = document.getElementById("alarm-sound");
   const done = document.getElementById("done-sound");
 
-  // Pedir permiso de notificaciones al cargar la página
+  // Pedir permiso de notificaciones
   if ("Notification" in window) {
     Notification.requestPermission();
   }
@@ -101,13 +97,16 @@
     }
   }
 
-  function showXP(time) {
+  function showXP(minutes) {
     const popup = document.getElementById("xp-popup");
-    popup.textContent = "¡Sumaste " + time + " de experiencia!";
+    popup.textContent = `¡Sumaste ${minutes} minutos de experiencia!`;
     popup.style.display = "block";
+    popup.style.transform = "translate(-50%, -50%) scale(1)";
+    popup.style.animation = "pop 0.4s ease-out";
 
     setTimeout(() => {
       popup.style.display = "none";
+      popup.style.transform = "translate(-50%, -50%) scale(0.7)";
     }, 3000);
   }
 
@@ -126,7 +125,6 @@
 
     document.getElementById("initial").textContent =
       "Tiempo inicial: " + formatTime(totalInitial);
-
     document.getElementById("extra").textContent = "Tiempo extra: +00:00";
     document.getElementById("total").textContent = "Tiempo total: --:--";
 
@@ -152,7 +150,6 @@
       const extra = Math.abs(diff);
       document.getElementById("extra").textContent =
         "Tiempo extra: +" + formatTime(extra);
-
       document.getElementById("main-time").textContent =
         "+" + formatTime(extra);
     } else {
@@ -168,7 +165,6 @@
   function resetTimer() {
     running = false;
     clearInterval(interval);
-
     document.getElementById("main-time").textContent = "00:00";
     document.getElementById("initial").textContent = "Tiempo inicial: --:--";
     document.getElementById("extra").textContent = "Tiempo extra: +00:00";
@@ -182,19 +178,15 @@
     const now = Date.now();
     const secondsPassed = Math.floor((now - startTimestamp) / 1000);
     const totalTime = Math.max(0, secondsPassed);
-
-    const formatted = formatTime(totalTime);
+    const totalMinutes = Math.ceil(totalTime / 60);
 
     document.getElementById("total").textContent =
-      "Tiempo total: " + formatted;
-
+      "Tiempo total: " + formatTime(totalTime);
     document.getElementById("main-time").textContent = "00:00";
 
     playSound(done);
-    showNotification("¡Hecho!", "Se completó la tarea");
-
-    // Popup experiencia
-    showXP(formatted);
+    showNotification("¡Hecho!", `Sumaste ${totalMinutes} minutos de experiencia`);
+    showXP(totalMinutes);
   }
 </script>
 
