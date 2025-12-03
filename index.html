@@ -14,9 +14,8 @@
       border-radius: 8px;
     }
     #main-time { font-size: 60px; margin-top: 20px; }
-    #initial, #extra, #total { font-size: 22px; margin-top: 10px; }
+    #initial, #extra, #total, #xp-done { font-size: 22px; margin-top: 10px; }
 
-    /* 🟨 POPUP VIDEOJUEGO */
     #xp-popup {
       position: fixed;
       top: 50%;
@@ -43,90 +42,108 @@
 
   <input id="minutes" type="number" placeholder="Minutos" min="0">
 
+  <div style="margin-top:15px; display:flex; justify-content:center; gap:10px; align-items:center;">
+    <input id="xp-prev" type="number" placeholder="XP ya hechos" min="0">
+    <button id="register-xp-btn" type="button">Registrar XP</button>
+  </div>
+
   <div>
-    <button onclick="startTimer()">Iniciar</button>
-    <button onclick="stopTimer()">Parar</button>
-    <button onclick="resetTimer()">Reiniciar</button>
-    <button onclick="finishTask()">Hecho</button>
+    <button id="start-btn" type="button">Iniciar</button>
+    <button id="stop-btn" type="button">Parar</button>
+    <button id="reset-btn" type="button">Reiniciar</button>
+    <button id="done-btn" type="button">Hecho</button>
   </div>
 
   <div id="main-time">00:00</div>
   <div id="initial">Tiempo inicial: --:--</div>
   <div id="extra">Tiempo extra: +00:00</div>
+  <div id="xp-done">XP hechos: --</div>
   <div id="total">Tiempo total: --:--</div>
 
-  <!-- POPUP experiencia -->
   <div id="xp-popup"></div>
 
-  <!-- Sonido cuando llega a 0 -->
   <audio id="alarm-sound">
     <source src="https://github.com/CanelaVisona/temporizador-audios/raw/refs/heads/main/mixkit-gold-coin-prize-1999.wav" type="audio/wav">
   </audio>
 
-  <!-- Sonido botón HECHO -->
   <audio id="done-sound">
     <source src="https://github.com/CanelaVisona/temporizador-audios/raw/refs/heads/main/mixkit-gold-coin-prize-1999.wav" type="audio/wav">
   </audio>
 
 <script>
+  // Estado
   let running = false;
   let startTimestamp = null;
   let endTimestamp = null;
-  let interval;
-  let totalInitial = 0;
+  let interval = null;
+  let totalInitial = 0; // segundos del temporizador (NO incluye XP)
   let played = false;
+  let xpPrevNum = 0; // minutos registrados con Registrar XP
 
+  // Elementos (script está después del DOM, por lo que estos elementos existen)
   const alarm = document.getElementById("alarm-sound");
   const done = document.getElementById("done-sound");
+  const minutesInput = document.getElementById("minutes");
+  const xpInput = document.getElementById("xp-prev");
+  const xpDoneEl = document.getElementById("xp-done");
+  const totalEl = document.getElementById("total");
+  const initialEl = document.getElementById("initial");
+  const extraEl = document.getElementById("extra");
+  const mainTimeEl = document.getElementById("main-time");
+  const xpPopup = document.getElementById("xp-popup");
 
-  // Pedir permiso de notificaciones
-  if ("Notification" in window) {
-    Notification.requestPermission();
+  const registerBtn = document.getElementById("register-xp-btn");
+  const startBtn = document.getElementById("start-btn");
+  const stopBtn = document.getElementById("stop-btn");
+  const resetBtn = document.getElementById("reset-btn");
+  const doneBtn = document.getElementById("done-btn");
+
+  // solicitar permiso de notificaciones (en try/catch para entornos file://)
+  try {
+    if ("Notification" in window) Notification.requestPermission();
+  } catch (e) {
+    console.log("Notif error", e);
   }
 
   function playSound(audio) {
-    audio.pause();
-    audio.currentTime = 0;
-    audio.load(); 
-    audio.play().catch(err => console.log("Audio bloqueado:", err));
+    try {
+      audio.pause(); audio.currentTime = 0; audio.load(); audio.play().catch(()=>{});
+    } catch (e) {}
   }
 
   function showNotification(title, body) {
-    if (Notification.permission === "granted") {
-      new Notification(title, { body: body });
-    }
-  }
-
-  function showXP(minutes) {
-    const popup = document.getElementById("xp-popup");
-    popup.textContent = `¡Sumaste ${minutes} minutos de experiencia✨! Seguí así wachi!`;
-    popup.style.display = "block";
-    popup.style.transform = "translate(-50%, -50%) scale(1)";
-    popup.style.animation = "pop 0.4s ease-out";
-
-    setTimeout(() => {
-      popup.style.display = "none";
-      popup.style.transform = "translate(-50%, -50%) scale(0.7)";
-    }, 3000);
+    try {
+      if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body });
+    } catch (e) { /* ignore */ }
   }
 
   function formatTime(totalSeconds) {
+    totalSeconds = Math.max(0, Math.floor(totalSeconds));
     const mins = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
     const secs = String(totalSeconds % 60).padStart(2, "0");
     return `${mins}:${secs}`;
   }
 
+  // Registrar XP: actualiza xpPrevNum y Tiempo total (base)
+  function registerXP() {
+    xpPrevNum = Number(xpInput.value) || 0;
+    xpDoneEl.textContent = "XP hechos: " + xpPrevNum;
+    totalEl.textContent = "Tiempo total: " + formatTime(xpPrevNum * 60);
+  }
+
+  // Inicia temporizador con SOLO el campo minutos (XP NO afecta ejecución)
   function startTimer() {
     if (running) return;
     running = true;
 
-    const minutes = Number(document.getElementById("minutes").value);
+    const minutes = Number(minutesInput.value) || 0;
     totalInitial = minutes * 60;
 
-    document.getElementById("initial").textContent =
-      "Tiempo inicial: " + formatTime(totalInitial);
-    document.getElementById("extra").textContent = "Tiempo extra: +00:00";
-    document.getElementById("total").textContent = "Tiempo total: --:--";
+    initialEl.textContent = "Tiempo inicial: " + formatTime(totalInitial);
+    extraEl.textContent = "Tiempo extra: +00:00";
+    xpDoneEl.textContent = "XP hechos: " + xpPrevNum;
+    // total muestra la base (XP) hasta que se toque Hecho
+    totalEl.textContent = "Tiempo total: " + formatTime(xpPrevNum * 60);
 
     played = false;
     startTimestamp = Date.now();
@@ -137,6 +154,7 @@
   }
 
   function updateTimer() {
+    if (!endTimestamp) return;
     const now = Date.now();
     let diff = Math.floor((endTimestamp - now) / 1000);
 
@@ -148,46 +166,75 @@
 
     if (diff < 0) {
       const extra = Math.abs(diff);
-      document.getElementById("extra").textContent =
-        "Tiempo extra: +" + formatTime(extra);
-      document.getElementById("main-time").textContent =
-        "+" + formatTime(extra);
+      extraEl.textContent = "Tiempo extra: +" + formatTime(extra);
+      mainTimeEl.textContent = "+" + formatTime(extra);
     } else {
-      document.getElementById("main-time").textContent = formatTime(diff);
+      mainTimeEl.textContent = formatTime(diff);
     }
   }
 
-  function stopTimer() {
-    running = false;
-    clearInterval(interval);
-  }
+  function stopTimer() { running = false; clearInterval(interval); }
 
   function resetTimer() {
-    running = false;
-    clearInterval(interval);
-    document.getElementById("main-time").textContent = "00:00";
-    document.getElementById("initial").textContent = "Tiempo inicial: --:--";
-    document.getElementById("extra").textContent = "Tiempo extra: +00:00";
-    document.getElementById("total").textContent = "Tiempo total: --:--";
+    running = false; clearInterval(interval);
+    startTimestamp = null; endTimestamp = null; totalInitial = 0;
+
+    mainTimeEl.textContent = "00:00";
+    initialEl.textContent = "Tiempo inicial: --:--";
+    extraEl.textContent = "Tiempo extra: +00:00";
+    // mantener XP registrados como base del Tiempo total
+    totalEl.textContent = "Tiempo total: " + formatTime(xpPrevNum * 60);
   }
 
+  // Hecho: suma XP previos + minutos actuales + extra, muestra popup con inicial+extra,
+  // y luego resetea temporizador y extra a 0, manteniendo XP y Tiempo total.
   function finishTask() {
     clearInterval(interval);
     running = false;
 
-    const now = Date.now();
-    const secondsPassed = Math.floor((now - startTimestamp) / 1000);
-    const totalTime = Math.max(0, secondsPassed);
-    const totalMinutes = Math.ceil(totalTime / 60);
+    const minutes = Number(minutesInput.value) || 0;
 
-    document.getElementById("total").textContent =
-      "Tiempo total: " + formatTime(totalTime);
-    document.getElementById("main-time").textContent = "00:00";
+    // calcular tiempo extra (si hubo)
+    let extraSeconds = 0;
+    if (endTimestamp) {
+      const raw = Math.floor((Date.now() - endTimestamp) / 1000);
+      if (raw > 0) extraSeconds = raw;
+    }
+
+    const initSeconds = minutes * 60;
+    const totalTime = xpPrevNum * 60 + initSeconds + extraSeconds;
+
+    xpDoneEl.textContent = "XP hechos: " + xpPrevNum;
+    totalEl.textContent = "Tiempo total: " + formatTime(totalTime);
+
+    // mostrar popup con inicial + extra (no incluye XP en popup según pedido)
+    xpPopup.textContent = "Tiempo (inicial + extra): " + formatTime(initSeconds + extraSeconds);
+    xpPopup.style.display = "block";
+    xpPopup.style.transform = "translate(-50%, -50%) scale(1)";
+    xpPopup.style.animation = "pop 0.4s ease-out";
+
+    setTimeout(() => {
+      xpPopup.style.display = "none";
+      xpPopup.style.transform = "translate(-50%, -50%) scale(0.7)";
+
+      // reiniciar temporizador y tiempo extra, sin tocar XP hechos ni Tiempo total
+      mainTimeEl.textContent = "00:00";
+      extraEl.textContent = "Tiempo extra: +00:00";
+      initialEl.textContent = "Tiempo inicial: --:--";
+      startTimestamp = null; endTimestamp = null; totalInitial = 0;
+    }, 3000);
 
     playSound(done);
-    showNotification("¡Hecho!", `Sumaste ${totalMinutes} minutos de experiencia`);
-    showXP(totalMinutes);
+    showNotification("¡Hecho!", `Se registraron ${Math.ceil(totalTime/60)} min totales`);
   }
+
+  // listeners
+  registerBtn.addEventListener('click', registerXP);
+  startBtn.addEventListener('click', startTimer);
+  stopBtn.addEventListener('click', stopTimer);
+  resetBtn.addEventListener('click', resetTimer);
+  doneBtn.addEventListener('click', finishTask);
+
 </script>
 
 </body>
