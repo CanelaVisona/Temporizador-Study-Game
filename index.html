@@ -6,244 +6,157 @@
   <style>
     body { font-family: Arial; text-align: center; margin-top: 30px; }
     input { font-size: 20px; padding: 5px; }
-    button { 
-      font-size: 20px; 
-      padding: 10px 20px; 
-      margin: 10px; 
-      cursor: pointer; 
+    button {
+      font-size: 20px;
+      padding: 10px 20px;
+      margin: 10px;
+      cursor: pointer;
       border-radius: 8px;
     }
     #main-time { font-size: 60px; margin-top: 20px; }
-    #initial, #extra, #total, #xp-done { font-size: 22px; margin-top: 10px; }
+    #initial, #extra, #total { font-size: 22px; margin-top: 10px; }
 
     #xp-popup {
       position: fixed;
       top: 50%;
       left: 50%;
-      transform: translate(-50%, -50%) scale(0.7);
+      transform: translate(-50%, -50%);
       background: #ffd54f;
       padding: 25px 40px;
       border-radius: 15px;
       font-size: 26px;
       font-weight: bold;
-      box-shadow: 0 0 20px rgba(0,0,0,0.3);
       display: none;
-      z-index: 9999;
-    }
-    @keyframes pop {
-      0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
     }
   </style>
 </head>
 <body>
 
-  <h2>Cane´s Temporizador Game</h2>
+<h2>Cane´s Temporizador Game</h2>
 
-  <input id="minutes" type="number" placeholder="Minutos" min="0">
+<input id="minutes" type="number" placeholder="Minutos" min="0">
 
-  <div style="margin-top:15px; display:flex; justify-content:center; gap:10px; align-items:center;">
-    <input id="xp-prev" type="number" placeholder="XP ya hechos" min="0">
-    <button id="register-xp-btn" type="button">Registrar XP</button>
-  </div>
+<div>
+  <button id="start-btn">Iniciar</button>
+  <button id="stop-btn">Parar</button>
+  <button id="reset-btn">Reiniciar</button>
+  <button id="done-btn">Hecho</button>
+</div>
 
-  <div>
-    <button id="start-btn" type="button">Iniciar</button>
-    <button id="stop-btn" type="button">Parar</button>
-    <button id="reset-btn" type="button">Reiniciar</button>
-    <button id="done-btn" type="button">Hecho</button>
-  </div>
+<div id="main-time">00:00</div>
+<div id="initial">Tiempo inicial: --:--</div>
+<div id="extra">Tiempo extra: +00:00</div>
+<div id="total">Tiempo total: 00:00</div>
 
-  <div id="main-time">00:00</div>
-  <div id="initial">Tiempo inicial: --:--</div>
-  <div id="extra">Tiempo extra: +00:00</div>
-  <div id="xp-done">XP hechos: --</div>
-  <div id="total">Tiempo total: --:--</div>
-
-  <div id="xp-popup"></div>
-
-  <audio id="alarm-sound">
-    <source src="https://github.com/CanelaVisona/temporizador-audios/raw/refs/heads/main/mixkit-gold-coin-prize-1999.wav" type="audio/wav">
-  </audio>
-
-  <audio id="done-sound">
-    <source src="https://github.com/CanelaVisona/temporizador-audios/raw/refs/heads/main/mixkit-gold-coin-prize-1999.wav" type="audio/wav">
-  </audio>
+<div id="xp-popup"></div>
 
 <script>
-  let running = false;
-  let pausedRemaining = null;
-  let startTimestamp = null;
-  let endTimestamp = null;
-  let interval = null;
-  let stopCount = 0;
+let interval = null;
+let startTimestamp = null;
+let endTimestamp = null;
+let pausedRemaining = null;
+let totalInitial = 0;
+let totalAccumulatedSeconds = 0;
+let played = false;
 
-  let totalInitial = 0;
-  let xpPrevNum = 0;
-  let played = false;
+const mainTimeEl = document.getElementById("main-time");
+const initialEl = document.getElementById("initial");
+const extraEl = document.getElementById("extra");
+const totalEl = document.getElementById("total");
+const xpPopup = document.getElementById("xp-popup");
 
-  const alarm = document.getElementById("alarm-sound");
-  const done = document.getElementById("done-sound");
+document.getElementById("start-btn").onclick = startTimer;
+document.getElementById("stop-btn").onclick = stopTimer;
+document.getElementById("reset-btn").onclick = resetTimer;
+document.getElementById("done-btn").onclick = finishTask;
 
-  const minutesInput = document.getElementById("minutes");
-  const xpInput = document.getElementById("xp-prev");
+function formatTime(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  const m = String(Math.floor(sec / 60)).padStart(2, "0");
+  const s = String(sec % 60).padStart(2, "0");
+  return `${m}:${s}`;
+}
 
-  const mainTimeEl = document.getElementById("main-time");
-  const initialEl = document.getElementById("initial");
-  const extraEl = document.getElementById("extra");
-  const xpDoneEl = document.getElementById("xp-done");
-  const totalEl = document.getElementById("total");
-  const xpPopup = document.getElementById("xp-popup");
-
-  document.getElementById("register-xp-btn").onclick = registerXP;
-  document.getElementById("start-btn").onclick = startTimer;
-  document.getElementById("stop-btn").onclick = stopTimer;
-  document.getElementById("reset-btn").onclick = resetTimer;
-  document.getElementById("done-btn").onclick = finishTask;
-
-  function formatTime(sec) {
-    sec = Math.max(0, Math.floor(sec));
-    const m = String(Math.floor(sec / 60)).padStart(2, "0");
-    const s = String(sec % 60).padStart(2, "0");
-    return `${m}:${s}`;
-  }
-
-  function registerXP() {
-    xpPrevNum = Number(xpInput.value) || 0;
-    xpDoneEl.textContent = "XP hechos: " + xpPrevNum;
-    totalEl.textContent = "Tiempo total: " + formatTime(xpPrevNum * 60);
-  }
-
-  function startTimer() {
-    // si estaba pausado → continuar desde donde quedó
-    if (pausedRemaining !== null) {
-      startTimestamp = Date.now();
-      endTimestamp = startTimestamp + pausedRemaining * 1000;
-      pausedRemaining = null;
-      stopCount = 0;
-      running = true;
-      interval = setInterval(updateTimer, 200);
-      return;
-    }
-
-    // iniciar desde cero
-    const minutes = Number(minutesInput.value) || 0;
+function startTimer() {
+  if (pausedRemaining !== null) {
+    startTimestamp = Date.now() - (totalInitial - pausedRemaining) * 1000;
+    endTimestamp = Date.now() + pausedRemaining * 1000;
+    pausedRemaining = null;
+  } else {
+    const minutes = Number(document.getElementById("minutes").value) || 0;
     totalInitial = minutes * 60;
-
-    initialEl.textContent = "Tiempo inicial: " + formatTime(totalInitial);
-    extraEl.textContent = "Tiempo extra: +00:00";
-
-    played = false;
-    running = true;
-    stopCount = 0;
-
     startTimestamp = Date.now();
     endTimestamp = startTimestamp + totalInitial * 1000;
-
-    clearInterval(interval);
-    interval = setInterval(updateTimer, 200);
-  }
-
-  function updateTimer() {
-    const now = Date.now();
-    const diff = Math.floor((endTimestamp - now) / 1000);
-
-    if (diff === 0 && !played) {
-      alarm.currentTime = 0;
-      alarm.play();
-      played = true;
-    }
-
-    if (diff < 0) {
-      const extra = Math.abs(diff);
-      extraEl.textContent = "Tiempo extra: +" + formatTime(extra);
-      mainTimeEl.textContent = "+" + formatTime(extra);
-    } else {
-      mainTimeEl.textContent = formatTime(diff);
-    }
-  }
-
-  function stopTimer() {
-    stopCount++;
-
-    clearInterval(interval);
-    running = false;
-
-    const now = Date.now();
-    pausedRemaining = Math.floor((endTimestamp - now) / 1000);
-
-    // si se apretó parar 2 veces → borrar tiempo inicial
-    if (stopCount >= 2) {
-      totalInitial = 0;
-      initialEl.textContent = "Tiempo inicial: --:--";
-    }
-  }
-
-  function resetTimer() {
-    clearInterval(interval);
-
-    running = false;
-    pausedRemaining = null;
-    stopCount = 0;
-
-    startTimestamp = null;
-    endTimestamp = null;
-    totalInitial = 0;
-    xpPrevNum = 0;
-
-    minutesInput.value = "";
-    xpInput.value = "";
-
-    mainTimeEl.textContent = "00:00";
-    initialEl.textContent = "Tiempo inicial: --:--";
+    initialEl.textContent = "Tiempo inicial: " + formatTime(totalInitial);
     extraEl.textContent = "Tiempo extra: +00:00";
-    xpDoneEl.textContent = "XP hechos: --";
-    totalEl.textContent = "Tiempo total: --:--";
   }
 
-  function finishTask() {
-    clearInterval(interval);
-    running = false;
+  clearInterval(interval);
+  interval = setInterval(updateTimer, 200);
+}
 
-    const minutes = Number(minutesInput.value) || 0;
-    const initSeconds = minutes * 60;
+function updateTimer() {
+  const diff = Math.floor((endTimestamp - Date.now()) / 1000);
 
-    let extraSeconds = 0;
-    if (endTimestamp) {
-      const raw = Math.floor((Date.now() - endTimestamp) / 1000);
-      if (raw > 0) extraSeconds = raw;
-    }
-
-    const totalTime = xpPrevNum * 60 + initSeconds + extraSeconds;
-
-    xpDoneEl.textContent = "XP hechos: " + xpPrevNum;
-    totalEl.textContent = "Tiempo total: " + formatTime(totalTime);
-
-    // popup
-    xpPopup.textContent =
-      "Tiempo (inicial + extra): " + formatTime(initSeconds + extraSeconds);
-    xpPopup.style.display = "block";
-    xpPopup.style.animation = "pop 0.4s ease-out";
-
-    setTimeout(() => {
-      xpPopup.style.display = "none";
-    }, 3000);
-
-    // reset de inputs
-    minutesInput.value = "";
-
-    // reset visual del timer
-    mainTimeEl.textContent = "00:00";
-    initialEl.textContent = "Tiempo inicial: --:--";
-    extraEl.textContent = "Tiempo extra: +00:00";
-
-    pausedRemaining = null;
-    totalInitial = 0;
-    stopCount = 0;
-
-    done.currentTime = 0;
-    done.play();
+  if (diff < 0) {
+    const extra = Math.abs(diff);
+    mainTimeEl.textContent = "+" + formatTime(extra);
+    extraEl.textContent = "Tiempo extra: +" + formatTime(extra);
+  } else {
+    mainTimeEl.textContent = formatTime(diff);
   }
+}
+
+function stopTimer() {
+  clearInterval(interval);
+  pausedRemaining = Math.floor((endTimestamp - Date.now()) / 1000);
+}
+
+function finishTask() {
+  clearInterval(interval);
+  if (!startTimestamp) return;
+
+  const elapsedSeconds =
+    Math.floor((Date.now() - startTimestamp) / 1000);
+
+  const baseSeconds = Math.min(elapsedSeconds, totalInitial);
+  const extraSeconds = Math.max(0, elapsedSeconds - totalInitial);
+
+  const sessionSeconds = baseSeconds + extraSeconds;
+  totalAccumulatedSeconds += sessionSeconds;
+
+  totalEl.textContent =
+    "Tiempo total: " + formatTime(totalAccumulatedSeconds);
+
+  xpPopup.textContent =
+    "Tiempo sumado: " + formatTime(sessionSeconds);
+  xpPopup.style.display = "block";
+
+  setTimeout(() => xpPopup.style.display = "none", 2500);
+
+  // reset sesión
+  mainTimeEl.textContent = "00:00";
+  initialEl.textContent = "Tiempo inicial: --:--";
+  extraEl.textContent = "Tiempo extra: +00:00";
+
+  startTimestamp = null;
+  pausedRemaining = null;
+  totalInitial = 0;
+}
+
+function resetTimer() {
+  clearInterval(interval);
+
+  startTimestamp = null;
+  pausedRemaining = null;
+  totalInitial = 0;
+  totalAccumulatedSeconds = 0;
+
+  mainTimeEl.textContent = "00:00";
+  initialEl.textContent = "Tiempo inicial: --:--";
+  extraEl.textContent = "Tiempo extra: +00:00";
+  totalEl.textContent = "Tiempo total: 00:00";
+}
 </script>
 
 </body>
