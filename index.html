@@ -50,6 +50,11 @@
 
 <div id="xp-popup"></div>
 
+<!-- 🔊 AUDIO -->
+<audio id="alarm-sound" preload="auto">
+  <source src="https://github.com/CanelaVisona/temporizador-audios/raw/refs/heads/main/mixkit-gold-coin-prize-1999.wav">
+</audio>
+
 <script>
 let interval = null;
 let startTimestamp = null;
@@ -58,6 +63,9 @@ let pausedRemaining = null;
 let totalInitial = 0;
 let totalAccumulatedSeconds = 0;
 let played = false;
+let audioUnlocked = false;
+
+const alarm = document.getElementById("alarm-sound");
 
 const mainTimeEl = document.getElementById("main-time");
 const initialEl = document.getElementById("initial");
@@ -77,7 +85,22 @@ function formatTime(sec) {
   return `${m}:${s}`;
 }
 
+/* 🔓 Desbloquear audio en primer click */
+function unlockAudio() {
+  if (audioUnlocked) return;
+
+  alarm.play().then(() => {
+    alarm.pause();
+    alarm.currentTime = 0;
+  }).catch(()=>{});
+
+  audioUnlocked = true;
+}
+
 function startTimer() {
+  unlockAudio();
+  played = false;
+
   if (pausedRemaining !== null) {
     startTimestamp = Date.now() - (totalInitial - pausedRemaining) * 1000;
     endTimestamp = Date.now() + pausedRemaining * 1000;
@@ -97,6 +120,13 @@ function startTimer() {
 
 function updateTimer() {
   const diff = Math.floor((endTimestamp - Date.now()) / 1000);
+
+  // 🔔 sonido al llegar a 00:00
+  if (diff === 0 && !played) {
+    alarm.currentTime = 0;
+    alarm.play();
+    played = true;
+  }
 
   if (diff < 0) {
     const extra = Math.abs(diff);
@@ -119,22 +149,21 @@ function finishTask() {
   const elapsedSeconds =
     Math.floor((Date.now() - startTimestamp) / 1000);
 
-  const baseSeconds = Math.min(elapsedSeconds, totalInitial);
-  const extraSeconds = Math.max(0, elapsedSeconds - totalInitial);
-
-  const sessionSeconds = baseSeconds + extraSeconds;
-  totalAccumulatedSeconds += sessionSeconds;
+  totalAccumulatedSeconds += elapsedSeconds;
 
   totalEl.textContent =
     "Tiempo total: " + formatTime(totalAccumulatedSeconds);
 
   xpPopup.textContent =
-    "Tiempo sumado: " + formatTime(sessionSeconds);
+    "Tiempo sumado: " + formatTime(elapsedSeconds);
   xpPopup.style.display = "block";
 
   setTimeout(() => xpPopup.style.display = "none", 2500);
 
-  // reset sesión
+  // 🔔 sonido al apretar HECHO
+  alarm.currentTime = 0;
+  alarm.play();
+
   mainTimeEl.textContent = "00:00";
   initialEl.textContent = "Tiempo inicial: --:--";
   extraEl.textContent = "Tiempo extra: +00:00";
